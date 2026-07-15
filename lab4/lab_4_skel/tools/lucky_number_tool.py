@@ -51,6 +51,7 @@ def lucky_number(birth_date):
     """
     current_date = datetime.datetime.now().strftime("%d%m%Y")
     all_digits = current_date + birth_date
+    print(all_digits)
     number = sum(int(digit) for digit in all_digits)
     return number
 
