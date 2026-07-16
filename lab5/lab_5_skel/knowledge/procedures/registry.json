@@ -1,14 +1,26 @@
 [
   {
-    "id": "support_procedure",
-    "name": "Support Procedure",
-    "description": "General support procedure for user assistance.",
+    "id": "code_review_procedure",
+    "name": "Code Review Procedure",
+    "description": "The steps Professor Gem follows to review and grade student code: static analysis with tools, qualitative criteria, grading and recording the evaluation.",
     "always_load": false
   },
   {
-    "id": "emplayee_handbook",
-    "name": "Employee Handbook",
-    "description": "Guide for employee policies and procedures.",
+    "id": "student_evaluation_procedure",
+    "name": "Student Evaluation Procedure",
+    "description": "How theoretical answers are evaluated and graded, what each grade means, and how student progress is recorded and consulted.",
+    "always_load": false
+  },
+  {
+    "id": "python_best_practices",
+    "name": "Python Best Practices",
+    "description": "The Python style rules used as review criteria: PEP 8 naming, function design, error handling, file handling, structure, idioms and comments.",
+    "always_load": false
+  },
+  {
+    "id": "git_workflow",
+    "name": "Git Workflow",
+    "description": "Git practices for student projects: commits, branches, what never goes into a repository, .gitignore, everyday commands and common errors.",
     "always_load": false
   }
 ]

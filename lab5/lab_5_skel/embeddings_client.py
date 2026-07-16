@@ -1,7 +1,7 @@
 import requests
 import json
 
-from config import EMBEDDINGS_MODEL, EMBEDDINGS_ENDPOINT, API_KEY, SIMILARITY_THRESHOLD, TOP_N
+from config import EMBEDDINGS_MODEL, EMBEDDINGS_ENDPOINT, API_KEY, SIMILARITY_THRESHOLD, TOP_N, EMBEDDINGS_FILE
 
 
 class EmbeddingsClient:
@@ -13,20 +13,32 @@ class EmbeddingsClient:
             headers["Authorization"] = f"Bearer {API_KEY}"
         return headers
     def get_embedding(self, text: str) -> list[float]:
-        response = requests.post(
-            EMBEDDINGS_ENDPOINT,
-            json={
-                "model": EMBEDDINGS_MODEL,
-                "input": text
-            },
-            headers=self._headers()
-        )
+        try:
+            response = requests.post(
+                EMBEDDINGS_ENDPOINT,
+                json={
+                    "model": EMBEDDINGS_MODEL,
+                    "input": text
+                },
+                headers=self._headers(),
+                timeout=60
+            )
+            response.raise_for_status()
+        except requests.exceptions.ConnectionError:
+            raise ConnectionError(
+                f"Could not connect to the embeddings server at "
+                f"{EMBEDDINGS_ENDPOINT}. Is Ollama running? Start it and try again."
+            )
+        except requests.exceptions.Timeout:
+            raise ConnectionError(
+                "The embeddings server did not answer in time (timeout)."
+            )
+        except requests.exceptions.HTTPError:
+            raise ConnectionError(
+                f"The embeddings server returned an error: "
+                f"HTTP {response.status_code} - {response.text[:200]}"
+            )
 
-        if not response.ok:
-            print("STATUS:", response.status_code)
-            print("BODY:", response.text)
-
-        response.raise_for_status()
         return response.json()["embeddings"][0]
 
     def cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
@@ -51,10 +63,28 @@ class EmbeddingsClient:
         return dot_product / (magnitude1 * magnitude2)
     
     def semantic_search(self, user_question: str):
-        question_embedding = self.get_embedding(user_question)
-        with open("embeddings.json", 'r', encoding="utf-8") as f:
-            emb_json = json.load(f)
-        
+        try:
+            question_embedding = self.get_embedding(user_question)
+        except ConnectionError as error:
+            print(f"Semantic search skipped: {error}")
+            return []
+
+        try:
+            with open(EMBEDDINGS_FILE, 'r', encoding="utf-8") as f:
+                emb_json = json.load(f)
+        except FileNotFoundError:
+            print(
+                f"Semantic search skipped: '{EMBEDDINGS_FILE}' does not "
+                "exist. Restart the application to generate it."
+            )
+            return []
+        except json.JSONDecodeError:
+            print(
+                f"Semantic search skipped: '{EMBEDDINGS_FILE}' is corrupted. "
+                "Delete it and restart the application to regenerate it."
+            )
+            return []
+
         results_with_similarity = []
         for item in emb_json:
             similarity = self.cosine_similarity(question_embedding, item["embedding"])

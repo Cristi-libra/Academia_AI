@@ -1,8 +1,20 @@
 [
   {
-    "id": "company_facts",
-    "name": "Company Facts",
-    "description": "Permanent company information.",
+    "id": "course_facts",
+    "name": "Course Facts",
+    "description": "Permanent information about the course taught by Professor Gem: grading scale, evaluation structure, office hours and policies.",
     "always_load": true
+  },
+  {
+    "id": "python_reference",
+    "name": "Python Reference",
+    "description": "Core Python facts: data structures, mutability, comprehensions, the GIL, strings, iteration idioms, files and JSON handling.",
+    "always_load": false
+  },
+  {
+    "id": "algorithm_complexity",
+    "name": "Algorithm Complexity",
+    "description": "Big-O complexity reference: Python data structure operation costs, searching, sorting, common inefficient patterns and space complexity.",
+    "always_load": false
   }
 ]

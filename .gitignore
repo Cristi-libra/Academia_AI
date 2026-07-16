@@ -64,3 +64,10 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Office lock files
+~$*
+
+# Generated / personal data (lab5 project)
+embeddings.json
+student_records.json

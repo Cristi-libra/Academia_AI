@@ -46,13 +46,60 @@ class LLMClient:
         endpoint = MODEL_ENDPOINT
         if endpoint.endswith("/openai/v1"):
             endpoint = endpoint.rstrip("/") + "/chat/completions"
+        error_message = None
+        response = None
+        for _ in range(2):
+            try:
+                response = requests.post(
+                    endpoint, json=payload, headers=self._headers(), timeout=60
+                )
+                response.raise_for_status()
+                error_message = None
+                break
+            except requests.exceptions.Timeout:
+                error_message = (
+                    "The model took too long to answer (timeout). "
+                    "Please try again."
+                )
+            except requests.exceptions.ConnectionError:
+                error_message = (
+                    "Could not reach the model endpoint. "
+                    "Check your internet connection and try again."
+                )
+            except requests.exceptions.HTTPError as error:
+                status = error.response.status_code
+                if status in (401, 403):
+                    error_message = (
+                        "The model rejected the API key. Check that the "
+                        "GEMINI_API_KEY environment variable is set correctly."
+                    )
+                    break  # retrying with the same key cannot succeed
+                elif status == 429:
+                    error_message = (
+                        "Too many requests (rate limit). "
+                        "Wait a moment and try again."
+                    )
+                elif status >= 500:
+                    error_message = (
+                        f"The model service is temporarily unavailable "
+                        f"(HTTP {status}). Please try again in a moment."
+                    )
+                else:
+                    error_message = (
+                        f"The model request failed with HTTP {status}: "
+                        f"{error.response.text[:200]}"
+                    )
+                    break  # a client-side error will not fix itself on retry
 
-        print("Endpoint:", endpoint)
+        if error_message is not None:
+            return {"message": {"content": error_message}}
 
-        response = requests.post(endpoint, json=payload, headers=self._headers())
-        response.raise_for_status()
-
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            return {"message": {"content": (
+                "The model returned an unreadable response. Please try again."
+            )}}
         if "message" in data:
             return data
 
