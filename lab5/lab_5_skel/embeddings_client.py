@@ -70,5 +70,6 @@ class EmbeddingsClient:
             reverse=True
         )
         final_list = [item for item in sorted_list if item["similarity"] > SIMILARITY_THRESHOLD]
+        print(f"Found {len(final_list)} relevant chunks for the question: '{user_question}'")
 
         return final_list[:TOP_N]

@@ -11,14 +11,20 @@ Future exercises may extend this file with:
 - Logging configuration
 """
 
-MODEL_NAME = "gemini-3.1-flash-lite"
-API_KEY = ""
-EMBEDDINGS_MODEL = "bge-m3:latest"
+MODEL_NAME = "gpt-5-mini"
+API_KEY = 
+EMBEDDINGS_MODEL = "qwen3-embedding:latest"
 EMBEDDINGS_ENDPOINT = "http://localhost:11434/api/embed"
 MODEL_ENDPOINT = (
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    "https://ai-academy-foundry.openai.azure.com/openai/v1/chat/completions"
 )
 SYSTEM_PROMPT = ""
 CHUNK_SIZE = 100
-TOP_N = 5
+TOP_N = 20
 SIMILARITY_THRESHOLD = 0.5
+INPUT_TOKEN_PRICE_PER_MILION = 30
+OUTPUT_TOKEN_PRICE_PER_MILION = 70
+INPUT_TOKEN_TOTAL = 0
+INPUT_TOKEN_TOTAL_PRICE = 0
+OUTPUT_TOKEN_TOTAL = 0
+OUTPUT_TOKEN_TOTAL_PRICE = 0

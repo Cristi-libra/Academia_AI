@@ -55,3 +55,14 @@ class ConversationContext:
     def get_history(self):
         # TODO: return the full message history
         return self.messages
+    def compress_history(self, max_tokens):
+        """
+        Compresses the conversation history to fit within the specified token limit.
+
+        This method removes the oldest messages from the conversation history
+        until the total token count is less than or equal to max_tokens.
+
+        Args:
+            max_tokens (int): The maximum number of tokens allowed in the conversation history.
+        """
+        
