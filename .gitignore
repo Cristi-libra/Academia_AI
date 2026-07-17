@@ -71,3 +71,5 @@ Thumbs.db
 # Generated / personal data (lab5 project)
 embeddings.json
 student_records.json
+lab5/lab_5_skel/sessions/
+lab5/lab_5_skel/uploads/

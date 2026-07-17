@@ -1,5 +1,16 @@
 # Plan de implementare pentru Claude Sonnet — ce a mai rămas din proiect
 
+> **STATUS 17 iulie: Etapele 1–7 și 9 EXECUTATE și testate.** Nu s-a făcut niciun
+> `git commit` — modificările sunt doar pe disc, review-uiește și fă commit când
+> ești mulțumit. Detalii pe etapă mai jos, marcate ✅.
+>
+> **STATUS 17 iulie (2) — Etapa 8 de mai jos e ÎNVECHITĂ**: OpenWebUI a fost
+> instalat conform pașilor de mai jos, dar decizia a fost revenită — a fost
+> dezinstalat complet și înlocuit cu o interfață web proprie (`static/` +
+> `api.py`). Vezi `PLAN_SESIUNEA6.md` (secțiunea „Interfața — DECIZIA FINALĂ") și
+> `README.md` §7-8 pentru arhitectura actuală. Restul acestui document (etapele
+> 1-7, 9) rămâne valabil ca istoric al implementării.
+
 > **Cine ești**: agentul care execută acest plan, pas cu pas, în folderul
 > `lab5/lab_5_skel/`. Contextul complet al proiectului e în `PLAN_SESIUNEA6.md`.
 >
@@ -404,13 +415,22 @@ de pe python.org alături de 3.14, `py -3.11 -m venv webui_env`, activezi și
 
 ## Checklist de predare
 
-- [ ] `config.py`: prețuri 2.0/10.0, `TOP_N=4`
-- [ ] `compress_history`: cele 3 bug-uri reparate + test de memorie trecut
-- [ ] cache embeddings: invalidare corectă pe subfoldere
-- [ ] `sessions/`: save/load în CLI și per-user în API; `sessions/` în `.gitignore`
-- [ ] `api.py`: `/v1/models` + `/v1/chat/completions` (stream + non-stream) + multi-user + filtru `### Task:`
-- [ ] OpenWebUI instalat prin uv (fără Docker), conectat, 2 useri demonstrați
-- [ ] `README.md` complet (arhitectură, extensibilitate, cost, tuning cu numere reale, setup)
-- [ ] code quality pass + comentarii stale șterse
-- [ ] `requirements.txt` actualizat (fastapi, uvicorn)
-- [ ] commit per etapă, fără chei API în cod
+- [x] `config.py`: prețuri 2.0/10.0, `TOP_N=4`
+- [x] `compress_history`: cele 4 bug-uri reparate + testate izolat (fake llm_client)
+- [x] cache embeddings: invalidare corectă pe subfoldere (`os.walk`)
+- [x] `sessions/`: save/load în CLI și per-user în API; `sessions/` în `.gitignore`
+- [x] `api.py`: `/v1/models` + `/v1/chat/completions` (stream + non-stream) + multi-user + filtru `### Task:` — testat cu FastAPI TestClient
+- [ ] **OpenWebUI instalat prin uv (fără Docker), conectat, 2 useri demonstrați** ← ACȚIUNE MANUALĂ A TA, comenzile sunt în README §8
+- [x] `README.md` complet (arhitectură, extensibilitate, cost, tuning cu numere reale MĂSURATE, setup)
+- [x] code quality pass + comentarii stale șterse
+- [x] `requirements.txt` actualizat (fastapi, uvicorn)
+- [ ] commit — NU s-a făcut niciun commit; review-uiește `git diff` și fă commit tu (sau cere-mi explicit)
+
+### Ce trebuie să faci tu acum
+
+1. `pip install -r requirements.txt` (sau doar `pip install fastapi uvicorn`) în
+   mediul tău dacă vrei să rulezi `api.py`.
+2. Citește `git diff` / `README.md` ca să știi ce s-a schimbat.
+3. Urmează README §8 ca să instalezi OpenWebUI local prin `uv` — asta chiar trebuie
+   rulat de tine, interactiv, în terminalul tău.
+4. Când ești mulțumit, fă commit (sau spune-mi să-l fac eu).

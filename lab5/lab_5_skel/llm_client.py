@@ -92,14 +92,20 @@ class LLMClient:
                     break  # a client-side error will not fix itself on retry
 
         if error_message is not None:
-            return {"message": {"content": error_message}}
+            return {
+                "message": {"role": "assistant", "content": error_message},
+                "error": True,
+            }
 
         try:
             data = response.json()
         except ValueError:
-            return {"message": {"content": (
-                "The model returned an unreadable response. Please try again."
-            )}}
+            return {
+                "message": {"role": "assistant", "content": (
+                    "The model returned an unreadable response. Please try again."
+                )},
+                "error": True,
+            }
         if "message" in data:
             return data
 

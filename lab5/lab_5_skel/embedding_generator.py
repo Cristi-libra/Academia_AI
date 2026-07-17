@@ -4,9 +4,18 @@ from config import EMBEDDINGS_FILE
 from document_chunker import load_n_chunk_docs
 from embeddings_client import EmbeddingsClient
 
+def _knowledge_mtime():
+    """Latest modification time across all files under knowledge/, including subfolders."""
+    latest = 0.0
+    for root, _dirs, files in os.walk("knowledge"):
+        for name in files:
+            latest = max(latest, os.path.getmtime(os.path.join(root, name)))
+    return latest
+
+
 def embedding_generator():
     if os.path.exists(EMBEDDINGS_FILE):
-        if os.path.getmtime("knowledge") < os.path.getmtime(EMBEDDINGS_FILE):
+        if _knowledge_mtime() < os.path.getmtime(EMBEDDINGS_FILE):
             print("Knowledge base has not changed since last embedding generation. Skipping generation.")
             return
 
