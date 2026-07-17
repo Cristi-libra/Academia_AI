@@ -5,6 +5,7 @@ the conversation context and the language model."""
 import json
 
 from embeddings_client import EmbeddingsClient
+import config
 
 
 class Agent:
@@ -37,7 +38,7 @@ class Agent:
         # TODO (2.4): comprimă istoricul ÎNAINTE de a adăuga mesajele noi ale
         # turei curente. Decomentează linia de mai jos după ce completezi
         # compress_history (și importă MAX_CONTEXT_TOKENS din config, sus):
-        # self.context.compress_history(MAX_CONTEXT_TOKENS, self.llm_client)
+        self.context.compress_history(config.MAX_CONTEXT_TOKENS, self.llm_client)
 
         semantic_search_results = EmbeddingsClient().semantic_search(user_message)
         if semantic_search_results:

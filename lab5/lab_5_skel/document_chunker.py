@@ -2,7 +2,7 @@
 
 import os
 import json
-from config import CHUNK_SIZE
+from config import CHUNK_OVERLAP, CHUNK_SIZE
 
 
 def load_n_chunk_docs():
@@ -35,7 +35,7 @@ def load_n_chunk_docs():
                                 print(f"Warning: document '{doc_path}' is listed in the registry but does not exist - skipped.")
                                 continue
                             words = text.split()
-                            for index, chunk in enumerate(range(0, len(words), CHUNK_SIZE)):
+                            for index, chunk in enumerate(range(0, len(words), CHUNK_SIZE - CHUNK_OVERLAP)):
                                 chunk_dict = {
                                     "document_id": fact.get("id"),
                                     "chunk_index": index,

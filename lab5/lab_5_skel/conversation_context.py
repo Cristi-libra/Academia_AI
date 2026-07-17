@@ -10,6 +10,7 @@ try:
     from .config import SYSTEM_PROMPT
 except ImportError:
     from config import SYSTEM_PROMPT
+import config
 
 import json
 import os
@@ -80,6 +81,7 @@ class ConversationContext:
     def get_history(self):
         # TODO: return the full message history
         return self.messages
+    
     def compress_history(self, max_tokens, llm_client=None):
         """
         Ține istoricul conversației sub max_tokens ("smart compression").
@@ -101,13 +103,20 @@ class ConversationContext:
         # HINT: e FIX aceeași buclă ca în track_input, doar că aduni într-o
         #       variabilă locală (ex. total), NU în self.input_tokens —
         #       aia e contabilitatea de cost, asta e doar o măsurătoare.
-        total = 0
         # TODO: adună count_tokens(str(m)) pentru fiecare m din self.messages
+
+        messages = self.messages
+        total = 0
+        for message in messages:
+            total  += uti.count_tokens(str(message))
 
         # ---- Pasul 2: dacă încăpem, nu facem nimic --------------------------
         # HINT: early return — același pattern ca exists-check-ul din
         #       embedding_generator.
         # TODO: if total <= max_tokens: return
+
+        if total <= max_tokens:
+            return
 
         # ---- Pasul 3: împarte istoricul în 3 zone ---------------------------
         #   [ system prompt ][ ...mesaje vechi... ][ ultimele KEEP_RECENT_MESSAGES ]
@@ -125,6 +134,15 @@ class ConversationContext:
         #       lui `old` (adică list.pop(0) + append).
         # TODO: cele 3 variabile + cele 2 verificări
 
+        system_prompt = self.messages[0]
+        recent = self.messages[-config.KEEP_RECENT_MESSAGES:]
+        old = self.messages[1:-config.KEEP_RECENT_MESSAGES]
+
+        if len(messages) <= 1 + config.KEEP_RECENT_MESSAGES:
+            return
+        if recent[0].get("role") == "tool":
+            old.append(recent.pop(0))
+
         # ---- Pasul 4: transformă mesajele vechi într-un singur text ---------
         # HINT: vrei ceva de forma:
         #           user: intrebarea lui...
@@ -134,6 +152,14 @@ class ConversationContext:
         # HINT: content poate fi None la mesajele assistant cu tool_calls —
         #       folosește str(m.get("content")) ca să nu crape.
         # TODO: conversation_text = ...
+
+        conversation_text = ""
+
+        for m in old:
+            conversation_text = "\n".join(
+                f"role:{m.get('role')}, content:{str(m.get('content') or None)}"
+
+            )
 
         # ---- Pasul 5: cere rezumatul de la LLM -------------------------------
         # HINT: generate_response primește o LISTĂ de mesaje în formatul
@@ -154,6 +180,16 @@ class ConversationContext:
         #       dacă summary începe cu un mesaj de eroare cunoscut.)
         # TODO: summary = ... (sau None dacă nu se poate)
 
+        summary = None
+        if llm_client is not None:
+            response = llm_client.generate_response([
+                {"role": "system", "content": "You summarize conversations. Reply ONLY with a short factual summary (max 150 words). Keep: names, grades given, decisions made, questions that are still open."},
+                {"role": "user", "content": conversation_text}
+            ])
+            summary = response["message"].get("content", "")
+            if not summary:
+                summary = None
+
         # ---- Pasul 6: reconstruiește istoricul (cu rezumat) ------------------
         # HINT: o singură atribuire:
         #       self.messages = [system_prompt,
@@ -162,12 +198,21 @@ class ConversationContext:
         #                                    "conversation: " + summary}] + recent
         # TODO (doar dacă ai un summary valid)
 
+        if summary:
+            self.messages = [system_prompt,
+                             {"role": "system",
+                              "content": "Summary of the earlier "
+                                         "conversation: " + summary}] + recent
+
         # ---- Pasul 7: fallback = sliding window ------------------------------
         # HINT: exact linia de la Pasul 6, dar FĂRĂ mesajul-rezumat:
         #       self.messages = [system_prompt] + recent
         # TODO (când summary e None/gol)
 
+        else:
+            self.messages = [system_prompt] + recent
+
         # ---- Verificare rapidă (șterge după ce merge) ------------------------
-        # print(f"[compress] {total} tokeni -> istoric redus la "
-        #       f"{len(self.messages)} mesaje")
+        #print(f"[compress] {total} tokeni -> istoric redus la "
+        #        f"{len(self.messages)} mesaje")
 

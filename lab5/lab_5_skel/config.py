@@ -13,19 +13,20 @@ Future exercises may extend this file with:
 
 import os
 
-MODEL_NAME = "gemini-3.1-flash-lite"
-API_KEY = os.environ.get("GEMINI_API_KEY", "")
-EMBEDDINGS_MODEL = "bge-m3:latest"
+MODEL_NAME = "gpt-5-mini"
+API_KEY = os.environ.get("CHATGPT_API_KEY", "")
+EMBEDDINGS_MODEL = "qwen3-embedding:latest"
 EMBEDDINGS_ENDPOINT = "http://localhost:11434/api/embed"
 MODEL_ENDPOINT = (
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    "https://ai-academy-foundry.openai.azure.com/openai/v1/chat/completions"
 )
 SYSTEM_PROMPT = ""
 CHUNK_SIZE = 100
+CHUNK_OVERLAP = 20
 TOP_N = 20
 SIMILARITY_THRESHOLD = 0.5
 EMBEDDINGS_FILE = "embeddings.json"
-MAX_CONTEXT_TOKENS = 6000
+MAX_CONTEXT_TOKENS = 4096
 KEEP_RECENT_MESSAGES = 4
 STUDENT_RECORDS_FILE = "student_records.json"
 WEB_SEARCH_MAX_RESULTS = 5

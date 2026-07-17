@@ -3,10 +3,12 @@ import os
 from config import EMBEDDINGS_FILE
 from document_chunker import load_n_chunk_docs
 from embeddings_client import EmbeddingsClient
+
 def embedding_generator():
     if os.path.exists(EMBEDDINGS_FILE):
-        print("Embeddings already exist. Skipping generation.")
-        return
+        if os.path.getmtime("knowledge") < os.path.getmtime(EMBEDDINGS_FILE):
+            print("Knowledge base has not changed since last embedding generation. Skipping generation.")
+            return
 
     embedding_list = []
     chunks = load_n_chunk_docs()

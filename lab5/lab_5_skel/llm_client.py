@@ -71,7 +71,7 @@ class LLMClient:
                 if status in (401, 403):
                     error_message = (
                         "The model rejected the API key. Check that the "
-                        "GEMINI_API_KEY environment variable is set correctly."
+                        "API_KEY environment variable is set correctly."
                     )
                     break  # retrying with the same key cannot succeed
                 elif status == 429:
