@@ -46,6 +46,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
     $("#new-chat").addEventListener("click", newConversation);
     $("#delete-btn").addEventListener("click", deleteCurrent);
+    $("#export-btn").addEventListener("click", exportCurrent);
+    $("#import-btn").addEventListener("click", () => $("#import-input").click());
+    $("#import-input").addEventListener("change", importConversation);
     $("#switch-btn").addEventListener("click", switchUser);
     $("#theme-btn").addEventListener("click", toggleTheme);
     $("#menu-btn").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
@@ -128,6 +131,39 @@ async function deleteCurrent() {
     const convs = await loadConversations();
     if (convs.length) selectConversation(convs[0].id, convs[0].title);
     else newConversation();
+}
+
+// Descarcă conversația curentă ca JSON. Lăsăm browserul să facă download-ul
+// dintr-un <a> temporar: endpoint-ul trimite deja Content-Disposition.
+function exportCurrent() {
+    if (!CONV) return;
+    const a = document.createElement("a");
+    a.href = `/export/${enc(USER)}/${enc(CONV)}`;
+    a.download = "";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+async function importConversation(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = "";           // permite re-importul aceluiași fișier
+
+    const body = new FormData();
+    body.append("file", file);
+
+    try {
+        const res = await fetch(`/import/${enc(USER)}`, { method: "POST", body });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+
+        const convs = await loadConversations();
+        const entry = convs.find((c) => c.id === data.id);
+        selectConversation(data.id, entry && entry.title);
+    } catch (err) {
+        alert("Importul a eșuat: " + err.message);
+    }
 }
 
 function setTitle(t) { $("#conv-title").textContent = t; }
@@ -336,7 +372,15 @@ function scrollDown() { const c = $("#chat"); c.scrollTop = c.scrollHeight; }
 function updateStats(d) {
     if (d.input_tokens === undefined) return;
     const cost = (d.total_cost || 0).toFixed(5);
-    $("#stats").textContent = `${d.input_tokens} tokeni in · ${d.output_tokens} tokeni out · $${cost}`;
+    let text = `${d.input_tokens} tokeni in · ${d.output_tokens} tokeni out · $${cost}`;
+    if (d.timing && d.timing.total) {
+        const t = d.timing;
+        text += ` · ${t.total.toFixed(1)}s (căutare ${t.retrieval.toFixed(1)}s`
+              + ` · model ${t.model.toFixed(1)}s`
+              + (t.tools ? ` · tool-uri ${t.tools.toFixed(1)}s` : "")
+              + ")";
+    }
+    $("#stats").textContent = text;
 }
 
 // ===================== File attach (stil ChatGPT: pleacă cu mesajul) =========

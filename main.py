@@ -6,15 +6,16 @@ interface for interacting with the agent.
 """
 
 from agent import Agent
+from logging_config import setup_logging
 from embedding_generator import embedding_generator
 import config
-from utils import count_tokens
 from llm_client import LLMClient
 from conversation_context import ConversationContext
 from tools.tools import tools
 
 
 def main():
+    setup_logging()
     embedding_generator()
     context = ConversationContext()
 

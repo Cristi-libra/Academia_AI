@@ -7,8 +7,8 @@ behind the scenes.
 For a conceptual overview and setup, see [`README.md`](README.md).
 
 **Conventions**
-- All paths are relative to `lab5/lab_5_skel/`.
-- "Model" means the chat LLM behind `LLMClient` (OpenAI-compatible: Gemini by default).
+- All paths are relative to the project root.
+- "Model" means the chat LLM behind `LLMClient` (OpenAI-compatible: Azure OpenAI by default).
 - Tool callbacks always return a **string** — that string is what the model reads
   back as the tool result.
 
@@ -34,19 +34,25 @@ For a conceptual overview and setup, see [`README.md`](README.md).
 All settings live in `config.py` as module-level constants. Import what you need:
 `from config import TOP_N`.
 
+Every constant is resolved as **environment variable → `.env` → default below**,
+using the internal helpers `_str` / `_int` / `_float` / `_bool`. A real
+environment variable overrides `.env`; an unparsable value (`TOP_N=abc`) falls
+back to the default rather than raising. `.env.example` is the committed
+template of every variable.
+
 | Constant | Default | Meaning |
 |---|---|---|
-| `MODEL_NAME` | `"gemini-3.1-flash-lite"` | Chat model id sent in the request body. |
-| `API_KEY` | `os.environ["GEMINI_API_KEY"]` | Chat API key. Read from the environment — never hardcode. |
-| `MODEL_ENDPOINT` | Gemini OpenAI-compat URL | Chat completions endpoint. |
-| `EMBEDDINGS_MODEL` | `"bge-m3:latest"` | Ollama embedding model. |
+| `MODEL_NAME` | `"gpt-5-mini"` | Chat model id sent in the request body. |
+| `API_KEY` | `""` (from env / `.env`) | Chat API key. Never hardcode. |
+| `MODEL_ENDPOINT` | Azure OpenAI URL | Chat completions endpoint. |
+| `EMBEDDINGS_MODEL` | `"qwen3-embedding:latest"` | Ollama embedding model. |
 | `EMBEDDINGS_ENDPOINT` | `http://localhost:11434/api/embed` | Ollama embeddings URL. |
 | `SYSTEM_PROMPT` | `""` | Prefix prepended before the knowledge base in the system prompt. |
 | `CHUNK_SIZE` | `100` | Words per chunk when indexing knowledge docs. |
 | `CHUNK_OVERLAP` | `20` | Words shared between consecutive chunks. |
 | `TOP_N` | `4` | Max chunks returned by semantic search. |
 | `SIMILARITY_THRESHOLD` | `0.5` | Minimum cosine similarity to keep a chunk. |
-| `DEBUG` | `False` | Enables verbose prints (e.g. retrieval counts). |
+| `DEBUG` | `False` | Legacy verbosity flag; prefer `LOG_LEVEL=DEBUG`. |
 | `EMBEDDINGS_FILE` | `"embeddings.json"` | Cached embeddings path. |
 | `MAX_CONTEXT_TOKENS` | `16000` | History budget before compression kicks in. |
 | `KEEP_RECENT_MESSAGES` | `4` | Messages kept verbatim during compression. |
@@ -57,6 +63,9 @@ All settings live in `config.py` as module-level constants. Import what you need
 | `WEB_SEARCH_MAX_RESULTS` | `5` | Results returned by `web_search`. |
 | `INPUT_TOKEN_PRICE_PER_MILLION` | `30` | Input price used for cost estimate. |
 | `OUTPUT_TOKEN_PRICE_PER_MILLION` | `70` | Output price used for cost estimate. |
+| `LOG_FORMAT` | `[%(asctime)s] %(levelname)s [%(module)s]: %(message)s` | Log line format. |
+| `LOG_LEVEL` | `"INFO"` | Root logger level. `DEBUG` adds retrieval/tool detail. |
+| `LOG_FILE` | `"app.log"` | Log file path (gitignored). |
 
 ---
 
@@ -150,8 +159,11 @@ Agent(llm_client, context, tools=None)
 | `context` | `ConversationContext` | Conversation state. |
 | `tools` | `list[Tool] \| None` | Tools available this turn (indexed by name). |
 
-**Attributes:** `last_reasoning` (str; the model's thinking if exposed) and
-`last_tools_used` (list[str]; tool names called this turn — used by the web UI).
+**Attributes:** `last_reasoning` (str; the model's thinking if exposed),
+`last_tools_used` (list[str]; tool names called this turn — used by the web UI),
+and `last_metrics` (dict; wall-clock seconds for the last turn, keys `retrieval`,
+`model`, `tools`, `total` — `model` is summed across every round of the tool
+loop). All three are reset at the start of each `process_message`.
 
 #### Methods
 
@@ -164,11 +176,17 @@ Runs a full turn and returns the assistant's text. Steps:
 4. **Multi-step loop** (up to `MAX_TOOL_ROUNDS = 5`): while the model returns
    `tool_calls`, execute them, append the results, and call the model again *with
    tools*. This lets it chain tools (read file → grade → save).
-5. Records `input`/`output` tokens and returns the final content.
+5. Records `input`/`output` tokens, fills `last_metrics`, logs both, and returns
+   the final content.
+
+Each phase is timed with the internal `_Timer` context manager and logged:
+`Timing: total=12.27s (retrieval=11.83s, model=0.35s over 1 call(s), tools=0.00s)`.
 
 **`_handle_tool_calls(tool_calls: list) -> list[dict]`** *(internal)*
 Executes each requested call and returns `{"role": "tool", "tool_call_id", "content"}`
-results. Unknown tool names return a `"Tool '...' not found"` string.
+results. Unknown tool names return a `"Tool '...' not found"` string. A tool that
+raises is caught and logged with its traceback, and the error text is returned as
+the tool result — a failing tool degrades the turn instead of killing it.
 
 ---
 
@@ -245,13 +263,27 @@ to 20 000 chars. Returns a clear message for unsupported/empty/unreadable files.
 Returns two `Tool`s bound (via closure) to `uploads/<user_id>/`:
 `list_uploaded_files` and `read_uploaded_file` — see below.
 
+**`tools.tools.discover_tools() -> list[Tool]`**
+Imports every module in the `tools` package (via `pkgutil.iter_modules`) and
+returns the module-level `Tool` instances found, deduplicated by `name`. Runs once
+at import time; the result is the module-level `tools` list. Modules in
+`SKIP_MODULES` (`tool`, `tools`, `file_tool`) are excluded, and a module that
+raises on import is logged at `ERROR` and skipped rather than propagating.
+
+**`logging_config.setup_logging() -> None`**
+Configures the root logger from `LOG_LEVEL` / `LOG_FORMAT` / `LOG_FILE`: a stdout
+handler plus a `FileHandler`, both UTF-8 (Windows consoles default to cp1252 and
+would mangle Romanian diacritics). Call once per entry point — `main()` and
+`api.on_startup()` already do.
+
 ---
 
 ## 4. Tools
 
-Each tool is a `Tool` instance registered in `tools/tools.py` (the per-user file
-tools are added at runtime by `make_file_tools`). The model calls them by `name`;
-arguments follow each tool's JSON Schema. **Every tool returns a string.**
+Each tool is a module-level `Tool` instance in a `tools/*.py` module, discovered
+automatically by `discover_tools()` (the per-user file tools are added at runtime
+by `make_file_tools`). The model calls them by `name`; arguments follow each
+tool's JSON Schema. **Every tool returns a string.**
 
 ### `lucky_number`
 Generates a lucky number from a birth date and today's date (sums all digits).
@@ -327,10 +359,33 @@ conversation id.
 | `POST /conversations/{user}` | — | `{id}` — a new conversation id (file created on first message). |
 | `DELETE /conversations/{user}/{conv_id}` | — | `{status: "deleted"}`; removes the session file + index entry. |
 | `GET /history/{user}/{conv_id}` | — | `{messages: [{role, content}], input_tokens, output_tokens, total_cost}`. |
+| `GET /export/{user}/{conv_id}` | — | JSON download (`Content-Disposition: attachment`) — see below. |
+| `POST /import/{user}` | multipart `file` | `{id, messages}` on success, `{error}` if the file is not valid JSON or not a Gem export. Always creates a **new** conversation. |
 | `POST /chat` | JSON `{user, conv_id, message}` | **SSE stream** — see below. Any pending uploads are inlined into the message first. |
 | `POST /upload` | multipart `user`, `conv_id`, `file` | `{filename, chars}` or `{error}`. Extracts text, stages it for the next message, saves the file under `uploads/<user>/`. |
-| `POST /reset` | JSON `{user, conv_id}` | `{status}`. |
 | `GET /debug/prompt/{user}/{conv_id}` | — | `{student_name, name_in_system_prompt, tools_available, system_prompt}` — inspect exactly what the model receives. |
+
+### Export format
+
+`GET /export/{user}/{conv_id}` returns a self-contained, portable file:
+
+```json
+{
+  "format": "gem-conversation",
+  "version": 1,
+  "exported_at": "2026-07-20 14:55",
+  "title": "ce complexitate are quicksort?",
+  "messages": [ ... ],
+  "input_tokens": 24969,
+  "output_tokens": 1062
+}
+```
+
+The system prompt is **excluded on purpose** — it is reassembled from
+`knowledge/` when the conversation is loaded, so an export stays valid even after
+the knowledge base changes. `POST /import/{user}` validates `format`, mints a
+fresh conversation id, and writes the session + index entry; it never overwrites
+an existing conversation.
 
 ### `POST /chat` streaming events
 
@@ -341,5 +396,5 @@ The response is `text/event-stream`; each line is `data: {json}`. Event `type`s:
 | `thinking` | `{text}` | Model reasoning, if exposed. |
 | `tools` | `{names}` | Tool names used this turn. |
 | `delta` | `{text}` | A chunk of the answer (word by word). |
-| `done` | `{input_tokens, output_tokens, total_cost}` | Final stats; stream ends. |
+| `done` | `{input_tokens, output_tokens, total_cost, timing}` | Final stats; stream ends. `timing` is `{retrieval, model, tools, total}` in seconds. |
 | `error` | `{message}` | Something failed; shown in place of the answer. |

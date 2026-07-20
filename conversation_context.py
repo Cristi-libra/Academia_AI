@@ -6,10 +6,14 @@ messages exchanged between the user and the AI assistant.
 """
 
 
+import logging
+
 try:
     from .config import SYSTEM_PROMPT
 except ImportError:
     from config import SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 import config
 
 import json
@@ -63,7 +67,7 @@ class ConversationContext:
         except FileNotFoundError:
             return
         except json.JSONDecodeError:
-            print(f"Warning: session file '{path}' is corrupted - starting fresh.")
+            logger.warning("Session file '%s' is corrupted - starting fresh.", path)
             return
         self.messages = [self.messages[0]] + data.get("messages", [])
         self.input_tokens = data.get("input_tokens", 0)
@@ -75,8 +79,8 @@ class ConversationContext:
         try:
             files_to_read = os.listdir("knowledge")
         except FileNotFoundError:
-            print(
-                "Warning: the 'knowledge' folder does not exist - "
+            logger.warning(
+                "The 'knowledge' folder does not exist - "
                 "starting with an empty system prompt."
             )
             return {"role": "system", "content": prompt}
@@ -91,7 +95,7 @@ class ConversationContext:
                             with open(registry_path, "r", encoding="utf-8") as f:
                                 facts = json.load(f)
                         except json.JSONDecodeError:
-                            print(f"Warning: registry '{registry_path}' is not valid JSON - skipped.")
+                            logger.warning("Registry '%s' is not valid JSON - skipped.", registry_path)
                             continue
                         for fact in facts:
                             if fact.get("always_load"):
@@ -100,7 +104,7 @@ class ConversationContext:
                                     with open(doc_path, "r", encoding="utf-8") as f2:
                                         prompt += "\n\n## " + fact.get("name") + "\n" + f2.read()
                                 except FileNotFoundError:
-                                    print(f"Warning: document '{doc_path}' is listed in the registry but does not exist - skipped.")
+                                    logger.warning("Document '%s' is listed in the registry but does not exist - skipped.", doc_path)
                 elif file_to_read == "prompts":
                     with open(os.path.join("knowledge", file_to_read, sub_file), "r", encoding="utf-8") as f:
                         prompt += "\n" + f.read()

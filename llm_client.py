@@ -5,6 +5,8 @@ This module is responsible for all communication
 with the language model.
 """
 
+import logging
+
 import requests
 
 try:
@@ -13,6 +15,8 @@ except ImportError:
     from config import MODEL_NAME, MODEL_ENDPOINT, API_KEY
 
 from tools.tool import Tool
+
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -112,11 +116,15 @@ class LLMClient:
                     break  # a client-side error will not fix itself on retry
 
         if error_message is not None:
+            logger.error("Model request failed: %s", error_message)
             return {"message": {"content": error_message}}
 
         try:
             data = response.json()
         except ValueError:
+            logger.error(
+                "Model returned non-JSON response: %s", response.text[:200]
+            )
             return {"message": {"content": (
                 "The model returned an unreadable response. Please try again."
             )}}
@@ -128,4 +136,5 @@ class LLMClient:
             if message is not None:
                 return {"message": message, "raw": data}
 
+        logger.error("Unexpected model response format: %s", data)
         raise ValueError(f"Unexpected model response format: {data}")

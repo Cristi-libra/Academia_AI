@@ -1,9 +1,0 @@
-requests
-tiktoken
-ddgs
-beautifulsoup4
-fastapi
-uvicorn[standard]
-python-multipart
-pypdf
-python-docx

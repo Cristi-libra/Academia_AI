@@ -47,9 +47,11 @@ venv_linux/
 my_env/
 .venv/
 
-# Environment variables file
+# Environment variables file (never commit real values)
 .env
 .env.*
+# ...but the template MUST be committed - it documents how to configure the app
+!.env.example
 
 # VS Code
 .vscode/

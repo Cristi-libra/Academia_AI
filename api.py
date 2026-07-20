@@ -19,13 +19,14 @@ Then open http://127.0.0.1:8000 in the browser.
 """
 
 import json
+import logging
 import os
 import re
 import time
 import uuid
 
 from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -35,8 +36,11 @@ from conversation_context import ConversationContext
 from document_reader import extract_text
 from embedding_generator import embedding_generator
 from llm_client import LLMClient
+from logging_config import setup_logging
 from tools.tools import tools
 from tools.file_tool import make_file_tools
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Gem Assistant")
 
@@ -49,6 +53,8 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 @app.on_event("startup")
 def on_startup():
+    setup_logging()
+    logger.info("Gem Assistant starting up.")
     embedding_generator()
     os.makedirs(config.SESSIONS_DIR, exist_ok=True)
 
@@ -167,6 +173,76 @@ def delete_conversation(user: str, conv_id: str):
     return {"status": "deleted"}
 
 
+@app.get("/export/{user}/{conv_id}")
+def export_conversation(user: str, conv_id: str):
+    """Downloads one conversation as a portable JSON file.
+
+    Self-contained on purpose: the exported file carries the messages, the token
+    counters and the metadata from the index, so it can be imported into another
+    account (or another machine) without needing anything else.
+    """
+    agent = get_agent(user, conv_id)
+    entry = next((e for e in _read_index(user) if e["id"] == conv_id), None)
+
+    payload = {
+        "format": "gem-conversation",
+        "version": 1,
+        "exported_at": time.strftime("%Y-%m-%d %H:%M"),
+        "title": (entry or {}).get("title", "Conversație"),
+        # [1:] scoate system prompt-ul: se reasamblează din knowledge/ la import.
+        "messages": agent.context.get_history()[1:],
+        "input_tokens": agent.context.input_tokens,
+        "output_tokens": agent.context.output_tokens,
+    }
+    logger.info(
+        "User '%s' exported conversation %s (%d messages).",
+        user, conv_id, len(payload["messages"]),
+    )
+    filename = f"gem-conversation-{_safe(conv_id)}.json"
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/import/{user}")
+async def import_conversation(user: str, file: UploadFile = File(...)):
+    """Imports a previously exported conversation as a NEW conversation.
+
+    Always creates a fresh id instead of overwriting: importing must never
+    destroy a conversation the user already has.
+    """
+    raw = await file.read()
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        logger.warning("Import failed for user '%s': not valid JSON (%s).", user, error)
+        return {"error": "That file is not valid JSON."}
+
+    if not isinstance(payload, dict) or payload.get("format") != "gem-conversation":
+        logger.warning("Import failed for user '%s': unrecognised format.", user)
+        return {"error": "That file is not a Gem conversation export."}
+
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return {"error": "The export contains no messages."}
+
+    conv_id = uuid.uuid4().hex[:12]
+    context = ConversationContext(username=user)
+    context.messages = [context.messages[0]] + messages
+    context.input_tokens = payload.get("input_tokens", 0) or 0
+    context.output_tokens = payload.get("output_tokens", 0) or 0
+    context.save_to_file(_conv_path(user, conv_id))
+    _touch_index(user, conv_id, context)
+
+    logger.info(
+        "User '%s' imported conversation as %s (%d messages).",
+        user, conv_id, len(messages),
+    )
+    return {"id": conv_id, "messages": len(messages)}
+
+
 @app.get("/history/{user}/{conv_id}")
 def history(user: str, conv_id: str):
     agent = get_agent(user, conv_id)
@@ -231,6 +307,10 @@ def chat(req: ChatRequest):
         try:
             answer = agent.process_message(message)
         except Exception as error:
+            logger.exception(
+                "Unhandled error while answering user '%s' (conv %s): %s",
+                req.user, req.conv_id, error,
+            )
             yield _sse({"type": "error", "message": f"Server error: {error}"})
             return
 
@@ -252,6 +332,7 @@ def chat(req: ChatRequest):
             "input_tokens": ctx.input_tokens,
             "output_tokens": ctx.output_tokens,
             "total_cost": _cost(ctx),
+            "timing": {k: round(v, 3) for k, v in agent.last_metrics.items()},
         })
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -275,10 +356,18 @@ async def upload(
 ):
     data = await file.read()
     if len(data) > config.UPLOAD_MAX_FILE_BYTES:
+        logger.warning(
+            "Upload rejected for user '%s': '%s' is %d bytes (max %d).",
+            user, file.filename, len(data), config.UPLOAD_MAX_FILE_BYTES,
+        )
         return {"error": f"File too large (max {config.UPLOAD_MAX_FILE_BYTES} bytes)."}
 
     safe_name = _safe_filename(file.filename)
     text = extract_text(safe_name, data)
+    logger.info(
+        "User '%s' uploaded '%s' (%d bytes, %d chars extracted).",
+        user, safe_name, len(data), len(text),
+    )
 
     # salvăm pe disc (pentru tool-urile de fișiere / referire ulterioară)
     user_dir = os.path.join(config.UPLOADS_DIR, _safe(user))

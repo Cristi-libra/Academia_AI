@@ -128,6 +128,13 @@ button { cursor: pointer; font-family: inherit; color: inherit; }
 .new-chat:hover { filter: brightness(1.08); }
 .new-chat:active { transform: translateY(1px); }
 
+/* Varianta discretă (import): aceeași formă, fără accentul plin. */
+.new-chat.ghost-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); margin-top: -8px;
+}
+.new-chat.ghost-btn:hover { background: var(--surface-2); color: var(--text); filter: none; }
+
 .conv-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; padding: 0 6px 8px; }
 .conv-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .conv-item {

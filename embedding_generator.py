@@ -1,8 +1,11 @@
 import json
 import os
+import logging
 from config import EMBEDDINGS_FILE
 from document_chunker import load_n_chunk_docs
 from embeddings_client import EmbeddingsClient
+
+logger = logging.getLogger(__name__)
 
 
 def _knowledge_mtime():
@@ -21,7 +24,7 @@ def _knowledge_mtime():
 def embedding_generator():
     if os.path.exists(EMBEDDINGS_FILE):
         if _knowledge_mtime() < os.path.getmtime(EMBEDDINGS_FILE):
-            print("Knowledge base has not changed since last embedding generation. Skipping generation.")
+            logger.info("Knowledge base unchanged since last run - skipping embedding generation.")
             return
 
     embedding_list = []
@@ -38,8 +41,8 @@ def embedding_generator():
             }
             embedding_list.append(chunk_with_embedding)
     except ConnectionError as error:
-        print(f"Could not generate embeddings: {error}")
-        print(
+        logger.error("Could not generate embeddings: %s", error)
+        logger.error(
             "The assistant will run WITHOUT knowledge retrieval. "
             "Start Ollama and restart the application to enable it."
         )
@@ -47,3 +50,4 @@ def embedding_generator():
 
     with open(EMBEDDINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(embedding_list, f, ensure_ascii=False, indent=4)
+    logger.info("Generated embeddings for %d chunks.", len(embedding_list))

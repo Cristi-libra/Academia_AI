@@ -14,6 +14,9 @@ except ImportError:
     from tool import Tool
 
 import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def lucky_number(birth_date):
@@ -51,7 +54,7 @@ def lucky_number(birth_date):
     """
     current_date = datetime.datetime.now().strftime("%d%m%Y")
     all_digits = current_date + birth_date
-    print(all_digits)
+    logger.debug("lucky_number digits: %s", all_digits)
     number = sum(int(digit) for digit in all_digits)
     return number
 

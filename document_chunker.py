@@ -2,7 +2,10 @@
 
 import os
 import json
+import logging
 from config import CHUNK_OVERLAP, CHUNK_SIZE
+
+logger = logging.getLogger(__name__)
 
 
 def load_n_chunk_docs():
@@ -10,7 +13,7 @@ def load_n_chunk_docs():
     try:
         files_to_read = os.listdir("knowledge")
     except FileNotFoundError:
-        print("Warning: the 'knowledge' folder does not exist - no documents to chunk.")
+        logger.warning("The 'knowledge' folder does not exist - no documents to chunk.")
         return chunk_dict_list
 
     for file_to_read in files_to_read:
@@ -23,7 +26,7 @@ def load_n_chunk_docs():
                         with open(registry_path, "r", encoding="utf-8") as f:
                             facts = json.load(f)
                     except json.JSONDecodeError:
-                        print(f"Warning: registry '{registry_path}' is not valid JSON - skipped.")
+                        logger.warning("Registry '%s' is not valid JSON - skipped.", registry_path)
                         continue
                     for fact in facts:
                         if not fact.get("always_load"):
@@ -32,7 +35,7 @@ def load_n_chunk_docs():
                                 with open(doc_path, "r", encoding="utf-8") as f2:
                                     text = f2.read()
                             except FileNotFoundError:
-                                print(f"Warning: document '{doc_path}' is listed in the registry but does not exist - skipped.")
+                                logger.warning("Document '%s' is listed in the registry but does not exist - skipped.", doc_path)
                                 continue
                             words = text.split()
                             for index, chunk in enumerate(range(0, len(words), CHUNK_SIZE - CHUNK_OVERLAP)):

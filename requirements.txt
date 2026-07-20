@@ -1,0 +1,21 @@
+# Runtime
+requests==2.34.2            # llm_client.py, embeddings_client.py
+tiktoken==0.13.0            # utils.py - token counting
+python-dotenv==1.2.2        # config.py - loads .env
+
+# Web app (api.py + static/)
+fastapi==0.139.2
+uvicorn==0.51.0
+python-multipart==0.0.32    # file uploads
+pydantic==2.13.4            # request models
+
+# Tools
+ddgs==9.14.4                # tools/web_search_tool.py
+
+# Document reading (uploads)
+pypdf==6.14.2               # document_reader.py - PDF
+python-docx==1.2.0          # document_reader.py - DOCX
+
+# Tests
+pytest==9.1.1
+pytest-cov==7.1.0
