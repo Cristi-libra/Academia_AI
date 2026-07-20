@@ -22,7 +22,7 @@ Map the findings to the course grading scale (1–10, defined in the course fact
 
 ## Step 4 — Record the Evaluation
 
-Ask for the student's name if it is not known yet, then save the result with the `save_student_evaluation` tool: topic (what was reviewed), the grade, and one short constructive feedback sentence. Confirm to the student that the evaluation was recorded.
+You MUST actually call the `save_student_evaluation` tool in the same turn — do not merely say that you are recording or will record it. Saying "I am recording this" without calling the tool is a failure. Use the student's name from your session identity, the topic (what was reviewed), the grade, and one short constructive feedback sentence. Only after the tool returns, confirm to the student that the evaluation was recorded.
 
 ## Step 5 — Teach
 

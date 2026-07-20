@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gem · AI Professor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%237c5cff' d='M6 2h12l4 7-10 13L2 9z'/></svg>">
+</head>
+<body>
+    <!-- Overlay pentru nume -->
+    <div id="name-overlay" class="overlay">
+        <div class="overlay-card">
+            <div class="gem-logo lg"><span class="gem-facet"></span></div>
+            <h1>Gem</h1>
+            <p class="muted">Professor · Computer Science &amp; Python</p>
+            <form id="name-form">
+                <input id="name-input" type="text" placeholder="Introdu un nume ca să începi" autocomplete="off" maxlength="40" required>
+                <button type="submit" class="btn-primary">Continuă</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Aplicația -->
+    <div id="app" class="app hidden">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-head">
+                <div class="gem-logo sm"><span class="gem-facet"></span></div>
+                <div class="wordmark">
+                    <strong>Gem</strong>
+                    <span class="muted">CS &amp; Python</span>
+                </div>
+            </div>
+
+            <button id="new-chat" class="new-chat">
+                <svg viewBox="0 0 24 24" class="ico"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Conversație nouă
+            </button>
+
+            <div class="conv-label muted">Conversații</div>
+            <nav id="conv-list" class="conv-list"></nav>
+
+            <div class="sidebar-foot">
+                <button id="switch-btn" class="foot-user" title="Schimbă utilizatorul">
+                    <svg viewBox="0 0 24 24" class="ico"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <span id="user-name"></span>
+                </button>
+                <button id="theme-btn" class="icon-btn" title="Schimbă tema">
+                    <svg viewBox="0 0 24 24" class="ico"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Zona principală -->
+        <main class="main">
+            <header class="topbar">
+                <button id="menu-btn" class="icon-btn only-mobile" title="Meniu">
+                    <svg viewBox="0 0 24 24" class="ico"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <span id="conv-title" class="conv-title">Conversație nouă</span>
+                <button id="delete-btn" class="icon-btn" title="Șterge conversația">
+                    <svg viewBox="0 0 24 24" class="ico"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </header>
+
+            <div id="chat" class="chat"></div>
+
+            <footer class="composer">
+                <div class="composer-inner">
+                    <input id="file-input" type="file" hidden>
+                    <button id="attach-btn" class="icon-btn ghost" title="Încarcă document">
+                        <svg viewBox="0 0 24 24" class="ico"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    </button>
+                    <textarea id="message-input" rows="1" placeholder="Scrie un mesaj lui Gem..."></textarea>
+                    <button id="send-btn" class="send-btn" title="Trimite">
+                        <svg viewBox="0 0 24 24" class="ico-fill"><path d="M12 20V7M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
+                <div id="stats" class="stats muted"></div>
+            </footer>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

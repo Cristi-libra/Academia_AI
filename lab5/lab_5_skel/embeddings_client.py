@@ -1,6 +1,7 @@
 import requests
 import json
 
+import config
 from config import EMBEDDINGS_MODEL, EMBEDDINGS_ENDPOINT, API_KEY, SIMILARITY_THRESHOLD, TOP_N, EMBEDDINGS_FILE
 
 
@@ -100,6 +101,7 @@ class EmbeddingsClient:
             reverse=True
         )
         final_list = [item for item in sorted_list if item["similarity"] > SIMILARITY_THRESHOLD]
-        print(f"Found {len(final_list)} relevant chunks for the question: '{user_question}'")
+        if config.DEBUG:
+            print(f"Found {len(final_list)} relevant chunks for: '{user_question}'")
 
         return final_list[:TOP_N]

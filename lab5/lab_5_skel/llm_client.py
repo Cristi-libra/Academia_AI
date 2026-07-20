@@ -33,10 +33,30 @@ class LLMClient:
             }
         }
 
+    def _merge_system_messages(self, messages):
+        """Contopește toate mesajele 'system' într-UNUL singur, la început.
+
+        Endpoint-ul OpenAI-compat de la Gemini onorează o singură instrucțiune
+        de sistem; cu mai multe mesaje 'system' (persona + knowledge injectat)
+        le pierde pe unele. Le adunăm aici ca să ajungă tot conținutul de sistem
+        (persona, numele userului, knowledge-ul RAG) drept o singură instrucțiune.
+        Restul mesajelor (user/assistant/tool) rămân în ordine.
+        """
+        system_parts = [
+            m["content"] for m in messages
+            if m.get("role") == "system" and m.get("content")
+        ]
+        others = [m for m in messages if m.get("role") != "system"]
+        merged = []
+        if system_parts:
+            merged.append({"role": "system", "content": "\n\n".join(system_parts)})
+        merged.extend(others)
+        return merged
+
     def generate_response(self, messages, tools=None):
         payload = {
             "model": MODEL_NAME,
-            "messages": messages,
+            "messages": self._merge_system_messages(messages),
             "stream": False
         }
 

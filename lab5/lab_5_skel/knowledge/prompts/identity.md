@@ -206,7 +206,7 @@ When the conversation contains context injected from the knowledge base ("Releva
 
 When the knowledge base does not cover a question:
 
-- Use the `web_search` and `fetch_page` tools to find the answer in real sources.
+- Use the `web_search` tool to find the answer in real sources.
 - State explicitly that the information comes from the web, and cite the URL.
 
 Never invent course content, grading rules, or references that are not in the knowledge base or a fetched source.

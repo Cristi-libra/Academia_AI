@@ -7,12 +7,15 @@ Estimările presupun ritmul tău actual (student + Copilot ca autocomplete). Pun
 > `CHATGPT_API_KEY`), iar embeddings-urile pe **qwen3-embedding** (Ollama, local).
 > Orice mențiune veche de „Gemini" / „bge-m3" din notițe se citește acum așa.
 >
-> **Decizie interfață**: renunțăm la UI-ul custom din Calea B. Interfața web va fi
-> **OpenWebUI instalat FĂRĂ Docker** (prin `uv`, vezi secțiunea 3), conectat la un
-> backend FastAPI OpenAI-compatible (`api.py`) cu **Multi-user Support**.
+> **Decizie interfață (ACTUALIZAT)**: renunțăm la OpenWebUI. Am reconstruit de la zero o
+> **interfață web proprie** (Claude), cu backend FastAPI (`api.py`) + `static/`:
+> streaming SSE cu efect de typing, loader animat (spinner de puncte + cuvinte random),
+> upload de documente (PDF/DOCX/text, citite de `document_reader.py`), memorie per user
+> (`sessions/`), multi-user, temă light/dark, thinking best-effort. CLI-ul (`main.py`)
+> rămâne neatins, în paralel.
 >
-> **Ce mai e de implementat** e detaliat pas cu pas în `PLAN_IMPLEMENTARE_SONNET.md`
-> — planul de execuție pentru Claude Sonnet.
+> **`PLAN_IMPLEMENTARE_SONNET.md` a fost ȘTERS** (stack greșit + propunea OpenWebUI,
+> acum irelevant).
 
 ---
 
@@ -27,18 +30,19 @@ Estimările presupun ritmul tău actual (student + Copilot ca autocomplete). Pun
 | Migrare Azure OpenAI | `config.py` + `llm_client.py` + `embeddings_client.py` | ✅ endpoint Azure + `_headers()` (api-key vs Bearer), model `gpt-5-mini`, embeddings `qwen3-embedding` | ✅ |
 | 2.1 Fallback | `llm_client.py` + `agent.py` | ✅ retry (tu) + mesaje pe tip de eroare (Claude) + ramura `else:` la search (tu) | ✅ |
 | 2.2 Error handling | `llm_client.py`, `embeddings_client.py`, `embedding_generator.py`, `document_chunker.py`, `conversation_context.py` | ✅ implementat + testat (fișiere lipsă/corupte, Ollama oprit, cheie invalidă, timeout) | ✅ |
-| 2.3 Cost optimization | `config.py` + README | `TOP_N` e tot 20 → 3–5; documentezi strategia | ⬜ |
-| 2.4 Context recycling | `conversation_context.py` + `agent.py` | ✅ TODO-urile completate (tu) + apelul decomentat în `process_message` — DAR are 🐛 3 bug-uri (vezi secțiunea Bug-uri deschise) | 🟨 |
-| 2.5 Scalability | `README.md` (nou) | zero cod — documentezi cum se extinde | ⬜ |
-| 2.6 Code quality | `agent.py`, `utils.py`, `embeddings_client.py` | o singură instanță `EmbeddingsClient` în `Agent.__init__`; encoding tiktoken la nivel de modul; fără print-uri debug | ⬜ |
+| 2.3 Cost optimization | `config.py` + README | ✅ `TOP_N = 4` + strategia documentată în README (Claude) | ✅ |
+| 2.4 Context recycling | `conversation_context.py` + `agent.py` | ✅ completat (tu) + cele 3 bug-uri reparate + schela HINT/TODO curățată (Claude) | ✅ |
+| 2.5 Scalability | `README.md` (nou) | ✅ „How to add a tool / a document" (Claude) | ✅ |
+| 2.6 Code quality | `agent.py`, `utils.py`, `embeddings_client.py`, `conversation_context.py` | ✅ o singură instanță `EmbeddingsClient`, encoding tiktoken la nivel de modul, print debug sub `config.DEBUG`, TODO-uri stale șterse (Claude) | ✅ |
 | Chunk overlap (2p) | `document_chunker.py` + `config.py` | ✅ `CHUNK_OVERLAP = 20`, pasul buclei e `CHUNK_SIZE - CHUNK_OVERLAP` | ✅ |
-| Embedding cache (2p) | `embedding_generator.py` | ✅ exists-check + comparație `getmtime` — DAR 🐛 mtime pe folder nu vede subfolderele | 🟨 |
-| Retrieval tuning (2p) | `config.py` + README | experimente cu threshold/top-N documentate | ⬜ |
-| Dedicated models (2p) | — | doar README: qwen3-embedding (Ollama) + gpt-5-mini (Azure) sunt deja separate | ⬜ |
-| Sessions (2p+2p+1p) | `conversation_context.py` + `main.py` | metode noi `save_to_file`/`load_from_file`; folder `sessions/` | ⬜ |
-| **Backend OpenAI-compatible (3p+2p)** | `api.py` (nou) | FastAPI cu `GET /v1/models` + `POST /v1/chat/completions` (inclusiv streaming SSE), refolosește Agent/Context | ⬜ |
-| **Multi-user Support (3p)** | `api.py` | dict `{user_id: Agent}` — user-ul vine din header-ul `X-OpenWebUI-User-Id` trimis de OpenWebUI | ⬜ |
-| **Interfață OpenWebUI (fără Docker!)** | setup, nu cod | `uv tool install --python 3.11 open-webui` (pip direct NU merge — avem Python 3.14) + conexiune OpenAI API către `http://localhost:8000/v1` | ⬜ |
+| Embedding cache (2p) | `embedding_generator.py` | ✅ exists-check + `_knowledge_mtime()` recursiv (bug-ul de subfoldere reparat de Claude) | ✅ |
+| Retrieval tuning (2p) | `config.py` + README | ✅ metodă + tabel în README (numerele exacte le rulezi tu) | ✅ |
+| Dedicated models (2p) | README | ✅ documentat: qwen3-embedding (Ollama) + gpt-5-mini (Azure) | ✅ |
+| Sessions / Memorie (2p+2p+1p) | `conversation_context.py` + `api.py` | ✅ `save_to_file`/`load_from_file` + `sessions/<user>.json` per user (Claude) | ✅ |
+| **Backend web (3p+2p)** | `api.py` (nou) | ✅ FastAPI: `/chat` streaming SSE, `/upload`, `/reset`, `/history`, servește `static/` (Claude) | ✅ |
+| **Multi-user Support (3p)** | `api.py` | ✅ dict `{user: Agent}`, sesiune izolată per nume, persistată pe disc (Claude) | ✅ |
+| **Interfață web proprie (3p)** | `static/` (nou) | ✅ UI cu animații, streaming, loader cu puncte+cuvinte random, temă, thinking (Claude) | ✅ |
+| **Upload & citire documente (1p)** | `document_reader.py` (nou) + `api.py` | ✅ PDF/DOCX/text → injectat în context, Gem le evaluează (Claude) | ✅ |
 | Extra tools (3p) | `tools/` | ✅ 7 tool-uri implementate și înregistrate în `tools/tools.py` | ✅ |
 | Knowledge nou | `knowledge/` | ✅ 3 facts + 4 procedures pe persona profesor, registries actualizate | ✅ |
 | Identity extins | `knowledge/prompts/identity.md` | ✅ regulile 9–12 + secțiunea Persona/Gender | ✅ |

@@ -13,6 +13,12 @@ class Agent:
         self.llm_client = llm_client
         self.context = context
         self.tools = {tool.name: tool for tool in tools} if tools else {}
+        # O singură instanță, refolosită la fiecare mesaj (nu una nouă de fiecare dată).
+        self.embeddings_client = EmbeddingsClient()
+        # Best-effort: unele modele "reasoning" întorc gândirea lor separat.
+        # O păstrăm aici ca s-o poată afișa interfața web (dacă există).
+        self.last_reasoning = ""
+        self.last_tools_used = []
 
     def _handle_tool_calls(self, tool_calls):
         results = []
@@ -34,13 +40,21 @@ class Agent:
             })
         return results
 
-    def process_message(self, user_message):
-        # TODO (2.4): comprimă istoricul ÎNAINTE de a adăuga mesajele noi ale
-        # turei curente. Decomentează linia de mai jos după ce completezi
-        # compress_history (și importă MAX_CONTEXT_TOKENS din config, sus):
-        self.context.compress_history(config.MAX_CONTEXT_TOKENS, self.llm_client)
+    def _extract_reasoning(self, message):
+        """Întoarce textul de 'thinking' dacă modelul îl expune, altfel ''."""
+        for key in ("reasoning_content", "reasoning", "thinking"):
+            value = message.get(key)
+            if value:
+                return str(value)
+        return ""
 
-        semantic_search_results = EmbeddingsClient().semantic_search(user_message)
+    def process_message(self, user_message):
+        # 2.4: comprimă istoricul ÎNAINTE de a adăuga mesajele noi ale turei.
+        self.context.compress_history(config.MAX_CONTEXT_TOKENS, self.llm_client)
+        self.last_reasoning = ""
+        self.last_tools_used = []
+
+        semantic_search_results = self.embeddings_client.semantic_search(user_message)
         if semantic_search_results:
             relevant_text = "\n\n".join(
                 result["content"] for result in semantic_search_results
@@ -65,23 +79,44 @@ class Agent:
             self.context.get_history(),
             tools=list(self.tools.values())
         )
-
         message = response["message"]
-        tool_calls = message.get("tool_calls", [])
+        self.last_reasoning = self._extract_reasoning(message)
 
-        if tool_calls:
+        # Multi-step tool calling: cât timp modelul cere tool-uri, le executăm și
+        # îl re-chemăm CU tool-uri, ca să poată înlănțui (ex. read_uploaded_file →
+        # save_student_evaluation). Limită de siguranță ca să nu bucleze la infinit.
+        MAX_TOOL_ROUNDS = 5
+        rounds = 0
+        while message.get("tool_calls") and rounds < MAX_TOOL_ROUNDS:
+            self.last_tools_used += [tc["function"]["name"] for tc in message["tool_calls"]]
             self.context.add_message(message)
 
-            tool_results = self._handle_tool_calls(tool_calls)
+            tool_results = self._handle_tool_calls(message["tool_calls"])
             for result in tool_results:
                 self.context.add_message(result)
-            
+
             self.context.track_input(self.context.get_history())
             response = self.llm_client.generate_response(
-                self.context.get_history()
+                self.context.get_history(),
+                tools=list(self.tools.values())
             )
             message = response["message"]
+            reasoning = self._extract_reasoning(message)
+            if reasoning:
+                self.last_reasoning = reasoning
+            rounds += 1
+
+        # Dacă tot cere tool-uri după limită, dăm un mesaj de siguranță.
+        if message.get("tool_calls"):
+            message = {
+                "role": "assistant",
+                "content": (
+                    "Am încercat mai multe operații, dar nu am ajuns la un răspuns "
+                    "final. Poți reformula cererea?"
+                ),
+            }
 
         self.context.add_message(message)
-        self.context.track_output(message.get("content", ""))
-        return message.get("content", "")
+        content = message.get("content", "") or ""
+        self.context.track_output(content)
+        return content

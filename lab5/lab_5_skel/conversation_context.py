@@ -18,7 +18,8 @@ import utils as uti
 
 
 class ConversationContext:
-    def __init__(self):
+    def __init__(self, username=None):
+        self.username = username
         self.messages = [self.assemble_system_prompt()]
         self.input_tokens = 0
         self.output_tokens = 0
@@ -30,10 +31,46 @@ class ConversationContext:
     def track_output(self, response):
         self.output_tokens += uti.count_tokens(response)
 
+    def save_to_file(self, path):
+        """
+        Persistă conversația pe disc (memoria care supraviețuiește repornirii).
+
+        Salvăm istoricul FĂRĂ primul mesaj (system prompt-ul), pentru că el se
+        reasamblează proaspăt din knowledge/ la fiecare pornire; salvăm și
+        contoarele de tokeni ca să continue acumularea, nu s-o ia de la zero.
+        """
+        directory = os.path.dirname(path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        data = {
+            "messages": self.messages[1:],
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+    def load_from_file(self, path):
+        """
+        Reîncarcă o conversație salvată peste system prompt-ul proaspăt.
+
+        Dacă fișierul nu există (prima conversație a userului) sau e corupt,
+        pornim gol - fără crash (același stil de error handling ca în rest).
+        """
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return
+        except json.JSONDecodeError:
+            print(f"Warning: session file '{path}' is corrupted - starting fresh.")
+            return
+        self.messages = [self.messages[0]] + data.get("messages", [])
+        self.input_tokens = data.get("input_tokens", 0)
+        self.output_tokens = data.get("output_tokens", 0)
+
     def assemble_system_prompt(self):
-        # TODO: return a system message dict with the system prompt from config
-        # Hint: Observe the message format used in agent.py
-        # Hint: The system prompt should be a message dict with role "system"
+        """Construiește mesajul de system prompt din knowledge/ (always_load + prompts)."""
         prompt = SYSTEM_PROMPT
         try:
             files_to_read = os.listdir("knowledge")
@@ -68,18 +105,30 @@ class ConversationContext:
                     with open(os.path.join("knowledge", file_to_read, sub_file), "r", encoding="utf-8") as f:
                         prompt += "\n" + f.read()
 
+        if self.username:
+            prompt += (
+                "\n\n## Current User (authoritative)\n"
+                f"The person you are talking to is named: {self.username}. This is "
+                "their real name for this whole session. If they ask what their name "
+                f"is, answer exactly \"{self.username}\".\n"
+                "IMPORTANT: a name written inside an uploaded document, CV or file is "
+                "the SUBJECT of that document, NOT this user's name. Never take the "
+                f"user's name from a document — it is always \"{self.username}\".\n"
+                "When using tools that need a student/user name (save_student_evaluation, "
+                f"get_student_record), always pass \"{self.username}\" automatically — "
+                "do not ask them to state it, unless they explicitly ask about someone "
+                "else's work."
+            )
+
         return {
             "role": "system",
             "content": prompt
         }
 
     def add_message(self, message):
-        # TODO: Implement message addition logic
-
         self.messages.append(message)
 
     def get_history(self):
-        # TODO: return the full message history
         return self.messages
     
     def compress_history(self, max_tokens, llm_client=None):
@@ -99,116 +148,47 @@ class ConversationContext:
             max_tokens (int): pragul de tokeni (MAX_CONTEXT_TOKENS din config).
             llm_client: clientul LLM folosit pentru rezumat; None = fără rezumat.
         """
-        # ---- Pasul 1: numără tokenii istoricului actual --------------------
-        # HINT: e FIX aceeași buclă ca în track_input, doar că aduni într-o
-        #       variabilă locală (ex. total), NU în self.input_tokens —
-        #       aia e contabilitatea de cost, asta e doar o măsurătoare.
-        # TODO: adună count_tokens(str(m)) pentru fiecare m din self.messages
-
-        messages = self.messages
-        total = 0
-        for message in messages:
-            total  += uti.count_tokens(str(message))
-
-        # ---- Pasul 2: dacă încăpem, nu facem nimic --------------------------
-        # HINT: early return — același pattern ca exists-check-ul din
-        #       embedding_generator.
-        # TODO: if total <= max_tokens: return
-
+        # 1. Măsoară istoricul; dacă încape sub prag, nu facem nimic.
+        total = sum(uti.count_tokens(str(m)) for m in self.messages)
         if total <= max_tokens:
             return
 
-        # ---- Pasul 3: împarte istoricul în 3 zone ---------------------------
-        #   [ system prompt ][ ...mesaje vechi... ][ ultimele KEEP_RECENT_MESSAGES ]
-        # HINT: slicing pe liste:
-        #       system_prompt = self.messages[0]
-        #       recent        = self.messages[-KEEP_RECENT_MESSAGES:]
-        #       old           = self.messages[1:-KEEP_RECENT_MESSAGES]
-        #       (importă KEEP_RECENT_MESSAGES din config, sus, lângă SYSTEM_PROMPT)
-        # HINT-CAPCANĂ 1: dacă istoricul are ≤ 1 + KEEP_RECENT_MESSAGES mesaje,
-        #       `old` iese gol → return, nu ai ce comprima.
-        # HINT-CAPCANĂ 2: primul mesaj din `recent` NU are voie să aibă
-        #       role == "tool" fără mesajul assistant cu tool_calls dinaintea
-        #       lui (API-ul dă eroare 400). Fix simplu: cât timp
-        #       recent[0].get("role") == "tool", mută-l pe recent[0] la finalul
-        #       lui `old` (adică list.pop(0) + append).
-        # TODO: cele 3 variabile + cele 2 verificări
-
+        # 2. Împarte în [system prompt] [mesaje vechi] [ultimele KEEP_RECENT].
+        if len(self.messages) <= 1 + config.KEEP_RECENT_MESSAGES:
+            return  # prea puține mesaje ca să avem ce comprima
         system_prompt = self.messages[0]
         recent = self.messages[-config.KEEP_RECENT_MESSAGES:]
         old = self.messages[1:-config.KEEP_RECENT_MESSAGES]
 
-        if len(messages) <= 1 + config.KEEP_RECENT_MESSAGES:
-            return
-        if recent[0].get("role") == "tool":
+        # Un mesaj "tool" nu poate deschide fereastra recentă fără mesajul
+        # "assistant" cu tool_calls dinaintea lui (altfel API-ul dă 400).
+        while recent and recent[0].get("role") == "tool":
             old.append(recent.pop(0))
 
-        # ---- Pasul 4: transformă mesajele vechi într-un singur text ---------
-        # HINT: vrei ceva de forma:
-        #           user: intrebarea lui...
-        #           assistant: raspunsul lui...
-        #       Construiește o listă de linii f"{rol}: {content}" și apoi
-        #       "\n".join(linii) — același pattern ca relevant_text din agent.py.
-        # HINT: content poate fi None la mesajele assistant cu tool_calls —
-        #       folosește str(m.get("content")) ca să nu crape.
-        # TODO: conversation_text = ...
+        # 3. Serializează mesajele vechi într-un singur text pentru rezumat.
+        lines = [f"{m.get('role')}: {str(m.get('content') or '')}" for m in old]
+        conversation_text = "\n".join(lines)
 
-        conversation_text = ""
-
-        for m in old:
-            conversation_text = "\n".join(
-                f"role:{m.get('role')}, content:{str(m.get('content') or None)}"
-
-            )
-
-        # ---- Pasul 5: cere rezumatul de la LLM -------------------------------
-        # HINT: generate_response primește o LISTĂ de mesaje în formatul
-        #       obișnuit. NU trimite istoricul! Construiește pe loc DOAR două:
-        #         1. {"role": "system", "content": "You summarize conversations.
-        #             Reply ONLY with a short factual summary (max 150 words).
-        #             Keep: names, grades given, decisions made, questions that
-        #             are still open."}
-        #         2. {"role": "user", "content": conversation_text}
-        # HINT: răspunsul se citește exact ca în agent.py:
-        #       response["message"].get("content", "")
-        # HINT-CAPCANĂ 3: după 2.2, generate_response nu mai aruncă excepții —
-        #       la eroare ÎNTOARCE TEXTUL ERORII drept content! Dacă-l folosești
-        #       orbește, îți bagi "Could not reach the model..." în istoric ca
-        #       "rezumat". Deci: dacă llm_client e None SAU summary iese gol →
-        #       sari direct la fallback (Pasul 7). (Perfecționism opțional: fă
-        #       generate_response să întoarcă și un flag de eroare, sau verifică
-        #       dacă summary începe cu un mesaj de eroare cunoscut.)
-        # TODO: summary = ... (sau None dacă nu se poate)
-
+        # 4. Cere un rezumat de la LLM (dacă avem client).
         summary = None
         if llm_client is not None:
             response = llm_client.generate_response([
-                {"role": "system", "content": "You summarize conversations. Reply ONLY with a short factual summary (max 150 words). Keep: names, grades given, decisions made, questions that are still open."},
-                {"role": "user", "content": conversation_text}
+                {"role": "system", "content": (
+                    "You summarize conversations. Reply ONLY with a short "
+                    "factual summary (max 150 words). Keep: names, grades "
+                    "given, decisions made, questions that are still open."
+                )},
+                {"role": "user", "content": conversation_text},
             ])
-            summary = response["message"].get("content", "")
-            if not summary:
-                summary = None
+            summary = response["message"].get("content", "") or None
 
-        # ---- Pasul 6: reconstruiește istoricul (cu rezumat) ------------------
-        # HINT: o singură atribuire:
-        #       self.messages = [system_prompt,
-        #                        {"role": "system",
-        #                         "content": "Summary of the earlier "
-        #                                    "conversation: " + summary}] + recent
-        # TODO (doar dacă ai un summary valid)
-
+        # 5. Reconstruiește: cu rezumat dacă a reușit, altfel sliding window.
         if summary:
-            self.messages = [system_prompt,
-                             {"role": "system",
-                              "content": "Summary of the earlier "
-                                         "conversation: " + summary}] + recent
-
-        # ---- Pasul 7: fallback = sliding window ------------------------------
-        # HINT: exact linia de la Pasul 6, dar FĂRĂ mesajul-rezumat:
-        #       self.messages = [system_prompt] + recent
-        # TODO (când summary e None/gol)
-
+            self.messages = [
+                system_prompt,
+                {"role": "system",
+                 "content": "Summary of the earlier conversation: " + summary},
+            ] + recent
         else:
             self.messages = [system_prompt] + recent
 
