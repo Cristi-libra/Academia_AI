@@ -75,3 +75,6 @@ embeddings.json
 student_records.json
 sessions/
 uploads/
+
+# Course slides / non-production material
+*.pptx
