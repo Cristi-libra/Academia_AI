@@ -394,9 +394,14 @@ A self-contained UI in `static/` (no external libraries), served by `api.py`:
 
 ---
 
-## Requirements coverage (Session 6)
+## Requirements coverage (Sessions 5–7)
 
-**Mandatory (10p)** — all implemented: agent persona, conversation context, dynamic
+**Session 5 (files & embeddings)** — all implemented: knowledge-base structure with
+registries, `assemble_system_prompt`, chunking (`document_chunker.py`), embeddings
+generation with caching (`embedding_generator.py`), semantic search
+(`EmbeddingsClient.semantic_search`), plus the bonus (retrieval injected into the prompt).
+
+**Session 6 mandatory (10p)** — all implemented: agent persona, conversation context, dynamic
 system prompt, knowledge base (prompts/facts/procedures) with registries, chunking,
 embeddings generation, semantic search, retrieval-based context injection, token
 usage tracking, cost estimation.
@@ -414,3 +419,13 @@ multi-user support, session management, multiple conversations per user, several
 tools, **multi-step tool reasoning**, chunk-overlap strategy, retrieval thresholds &
 tuning, embedding cache, dedicated embedding + chat model, per-user file tools, and a
 live token/cost readout.
+
+**Session 7 (testing, logging & packaging)** — all implemented:
+- **Packaging** — `README.md`, `requirements.txt` and `.gitignore` are in the repo; the
+  project can be cloned and run from this documentation alone (see [How to run](#how-to-run)).
+- **Logging** — a single app-level logger (`logging_config.py`) records every user
+  question, every model answer, every tool call and every error, at `INFO` / `WARNING` /
+  `ERROR` (see [Logs](#logs)).
+- **Unit tests** — `tests/test_embeddings_client.py` covers `cosine_similarity`
+  (identical, opposite, orthogonal, related, and both zero-magnitude branches) for full
+  coverage; run with `pytest` (see [Running the tests](#running-the-tests)).

@@ -294,7 +294,7 @@ def chat(req: ChatRequest):
     """
     agent = get_agent(req.user, req.conv_id)
 
-    # Lipește conținutul fișierelor atașate DE mesaj (stil ChatGPT/Claude):
+    # Lipește conținutul fișierelor atașate DE mesaj (stil ChatGPT):
     # modelul le vede direct în prompt, nu trebuie să cheme un tool.
     key = f"{_safe(req.user)}::{_safe(req.conv_id)}"
     attachments = pending_files.pop(key, [])
